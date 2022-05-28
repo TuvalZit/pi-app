@@ -1,27 +1,39 @@
-//Imports
+//Imports from react open source
 import React, { useEffect, useState } from "react";
-import { Text, Box, Image, Flex, Button, Input, Spinner } from "theme-ui";
-import MyButton from "./MyButton";
-import pi_header from "./util/pi_header3.png";
+import { Text, Flex, Input } from "theme-ui";
+import { useDispatch, useSelector } from "react-redux";
+
+//Import functions
+import { getPiDigits } from "./Redux/Slices/PiSlice";
+
+//Import components
+import MyButton from "./Components/MyButton";
+import Footer from "./Components/Footer";
+import Header from "./Components/Header";
+import Title from "./Components/Title";
+import RenderDigits from "./Components/RenderDigits";
 
 //================================================================================
 const Pi = () => {
-  const url = "https://api.pi.delivery/v1/pi?start=1&numberOfDigits=";
-  //Number of digits to display
+  //Number of digits to fetch from the api
   const [numDigits, setNumDigits] = useState(20);
-  //The digits of PI
-  const [piDigits, setPiDigits] = useState([]);
   //Digits to Display
   const [digitsToDisplay, setDigitsToDisplay] = useState("3.");
   //Boolean to verfiy if start button pressed
   const [isStart, setIsStart] = useState(false);
+  //Boolean flag pause
+  const [pause, setPause] = useState(false);
+  const [isRefreshed, setisRefreshed] = useState(true);
+  //Use dispatch
+  const dispatch = useDispatch();
+  //Use selector to get the piDigits from the store
+  const { piDigits } = useSelector((state) => state.PiSlice);
+  const [errorType, setErrorType] = useState({
+    negative: false,
+    tooLong: false,
+  });
   //--------------------------------------------------------------
-  const fetchData = (numDigits) => {
-    fetch(url + numDigits)
-      .then((response) => response.json())
-      .then((piDigits) => setPiDigits(piDigits.content));
-  };
-  //--------------------------------------------------------------
+  //Use effect to print every second 1 digit
   useEffect(() => {
     const printDigits = () => {
       if (
@@ -36,25 +48,59 @@ const Pi = () => {
     };
     const interval = setInterval(() => {
       printDigits();
-    }, 100);
+    }, 500);
     return () => clearInterval(interval);
   }, [isStart, digitsToDisplay, piDigits, numDigits]);
   //--------------------------------------------------------------
+  //Handle minus function, sub 1 from  numDigits
   const handleMinus = () => {
-    if (numDigits - 1 < 0) setNumDigits(0);
+    if (numDigits - 1 < 0 || numDigits === "") setNumDigits(0);
     else setNumDigits(numDigits - 1);
     setIsStart(false);
   };
   //--------------------------------------------------------------
+  //Handle plus function, sub 1 from  numDigits
   const handlePlus = () => {
-    if (numDigits + 1 > 79) {
-      setNumDigits(79);
-    } else {
-      setNumDigits(numDigits + 1);
-    }
+    if (numDigits === "") setNumDigits(1);
+    else setNumDigits(numDigits + 1);
     setIsStart(false);
   };
   //--------------------------------------------------------------
+  const handlePause = () => {
+    setIsStart(!isStart);
+    setPause(!pause);
+  };
+  //--------------------------------------------------------------
+  const handleStart = () => {
+    setIsStart(true);
+    setDigitsToDisplay("3.");
+    dispatch(getPiDigits(numDigits));
+    setisRefreshed(false);
+  };
+  //--------------------------------------------------------------
+  const handleRefresh = () => {
+    setIsStart(false);
+    setPause(false);
+    setDigitsToDisplay("3.");
+    setisRefreshed(true);
+    setNumDigits(20);
+  };
+  //--------------------------------------------------------------
+  const changeNumDigit = (value) => {
+    handleRefresh();
+    const replace = value.replace(/\D/g, "");
+    setNumDigits(parseInt(replace) || "");
+  };
+  //--------------------------------------------------------------
+  useEffect(() => {
+    if (numDigits < 0)
+      setErrorType((prevState) => ({ ...prevState, negative: true }));
+    else setErrorType((prevState) => ({ ...prevState, negative: false }));
+    if (numDigits > 1000)
+      setErrorType((prevState) => ({ ...prevState, tooLong: true }));
+    else setErrorType((prevState) => ({ ...prevState, tooLong: false }));
+  }, [numDigits]);
+
   return (
     <Flex
       id="main_flex"
@@ -65,197 +111,122 @@ const Pi = () => {
         background: "#292A32   ",
         width: "100%",
         height: "100%",
-        margin: " 0 !important",
+        minHeight: "100vh",
       }}
     >
-      <Flex
-        id="Pi_Flex"
-        sx={{
-          backgroundColor: "#61DBFB",
-          justifyContent: "center",
-          border: "solid",
-          width: "100%",
-          height: "100%",
-        }}
-      >
-        <Image src={pi_header}></Image>
-      </Flex>
+      <Header />
       <Flex
         id="Body"
         sx={{
-          marginTop: "20px",
           alignItems: "center",
           flexDirection: "column",
-          minHeight: "40vh",
-          justifyContent: "Space-Around",
-          py: "100px",
+          justifyContent: "space-around",
+          height: "100%",
+          py: "20px",
+          my: "auto",
         }}
       >
-        <Text
-          sx={{
-            fontFamily: "Times news Roman",
-            fontStyle: "normal",
-            fontSize: "50px",
-            fontWeight: "bold",
-            color: "white",
-          }}
-        >
-          Display the first n-digits of Pi
-        </Text>
+        <Title />
         <Flex
+          id="main box"
           sx={{
-            marginTop: "50px",
-            background: "white",
-            border: "solid",
-            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "space-between",
-            py: "20px",
+            background: "whitesmoke",
+            border: "solid",
             borderRadius: "30px",
+            flexDirection: "column",
+            height: "280px",
+            justifyContent: "space-between",
+            marginTop: "50px",
+            py: "20px",
             width: "15%",
-            height: "250px",
           }}
         >
           <Text
             sx={{
               fontFamily: "Thaoma",
-              fontWeight: "bold",
               fontSize: "30px",
               fontWeight: "bold",
             }}
           >
             Number of digits
           </Text>
-          <Flex>
-            <MyButton sign="-" onClick={handleMinus}>
+          <Flex id="plusMinus-container">
+            <MyButton backgroundColor="coral" onClick={handleMinus}>
               -
             </MyButton>
             <Input
-              sx={{ textAlign: "center", width: "50px", margin: "10px" }}
+              sx={{
+                marginX: "10px",
+                textAlign: "center",
+                width: "100px",
+                borderRadius: "10px",
+                borderWidth: "2px",
+                outlineColor:
+                  errorType.negative || errorType.tooLong ? "red" : "black",
+                borderColor:
+                  errorType.negative || errorType.tooLong ? "red" : "black",
+                //Remove Arrows from input in  Chrome, Safari, Edge, Opera
+                "&input::-webkit-outer-spin-button, &input::-webkit-inner-spin-button":
+                  {
+                    "-webkit-appearance": "none",
+                    margin: 0,
+                  },
+                //Remove Arrows from input in  Firefox
+                "-moz-appearance": "textfield",
+              }}
               value={numDigits}
+              onChange={(e) => {
+                changeNumDigit(e.target.value);
+              }}
             />
-            <MyButton sign="+" onClick={handlePlus}>
+            <MyButton backgroundColor="DeepSkyBlue" onClick={handlePlus}>
               +
             </MyButton>
           </Flex>
+
           <Flex
-            sx={{
-              flexDirection: "column",
-              justifyContent: "center",
-              width: "50%",
-            }}
+            id="action-container"
+            sx={{ width: "100%", justifyContent: "space-around" }}
           >
-            <Flex sx={{ width: "100%", justifyContent: "space-between" }}>
-              <Button
-                sx={{
-                  height: "25px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  backgroundColor: "#e0876a",
-                  color: "black",
-                  ":hover": {
-                    border: " solid black",
-                  },
-                }}
-                onClick={() => {
-                  setIsStart(!isStart);
-                }}
-              >
-                Stop
-              </Button>
-              <Button
-                sx={{
-                  height: "25px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  backgroundColor: "#61DBFB",
-                  color: "black",
-                  ":hover": {
-                    border: " solid black",
-                  },
-                }}
-                onClick={(e) => {
-                  console.log(isStart);
-                  if (!isStart) {
-                    setIsStart(true);
-                    setDigitsToDisplay("3.");
-                    fetchData(numDigits);
-                  }
-                }}
-              >
-                Start
-              </Button>
-            </Flex>
-            <Flex sx={{ width: "100%" }}>
-              <Button
-                sx={{
-                  width: "100%",
-                  my: "10px",
-                  height: "25px",
-                  justifyContent: "center",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  backgroundColor: "lightGreen",
-                  color: "black",
-                  ":hover": {
-                    border: " solid black",
-                  },
-                }}
-                onClick={(e) => {
-                  setIsStart(false);
-                  setDigitsToDisplay("3.");
-                }}
-              >
-                Refresh
-              </Button>
-            </Flex>
+            <MyButton
+              disabled={
+                (!piDigits && isRefreshed) ||
+                digitsToDisplay.length === numDigits + 2 ||
+                !numDigits ||
+                errorType.negative ||
+                errorType.tooLong
+              }
+              onClick={handlePause}
+              bg="coral"
+              sx={{ width: "100px" }}
+            >
+              {pause ? "unPause" : "pause"}
+            </MyButton>
+            <MyButton
+              disabled={isStart || !numDigits}
+              onClick={handleStart}
+              bg="DeepSkyBlue"
+              sx={{ width: "100px" }}
+            >
+              Start
+            </MyButton>
           </Flex>
+          <MyButton bg="lightgreen" onClick={handleRefresh}>
+            Refresh
+          </MyButton>
         </Flex>
-        <Flex
-          sx={{
-            marginTop: "50px",
-            background: "white",
-            border: "solid",
-            flexDirection: "flex-start",
-            padding: "20px",
-            width: "50%",
-            borderRadius: "30px",
-          }}
-        >
-          <Text style={{ fontSize: "30px" }}>
-            {digitsToDisplay}
-            {isStart &&
-              digitsToDisplay !== null &&
-              digitsToDisplay.length !== numDigits + 2 && (
-                <Spinner size={"25px"} color={"blue"}></Spinner>
-              )}
-          </Text>
-        </Flex>
+        <RenderDigits
+          digitsToDisplay={digitsToDisplay}
+          errorType={errorType}
+          showSpinner={
+            isStart &&
+            digitsToDisplay !== null &&
+            digitsToDisplay.length !== numDigits + 2
+          }
+        />
       </Flex>
-      <Flex>
-        <Flex
-          id="Footer"
-          sx={{
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: "#61DBFB",
-            border: "solid",
-            width: "100%",
-            height: "128px",
-          }}
-        >
-          <Text
-            sx={{
-              fontSize: "75px",
-              fontFamily: "Thaoma",
-              fontWeight: "bold",
-            }}
-          >
-            @Tuval Zitelbach
-          </Text>
-        </Flex>
-      </Flex>
+      <Footer />
     </Flex>
   );
 };
